@@ -1,0 +1,97 @@
+name: Build and Test ScreenPipe
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Clone ScreenPipe Repository
+        run: git clone https://github.com/neo773/screenpipe.git
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            g++ \
+            ffmpeg \
+            tesseract-ocr \
+            cmake \
+            libavformat-dev \
+            libavfilter-dev \
+            libavdevice-dev \
+            libssl-dev \
+            libtesseract-dev \
+            libxdo-dev \
+            libsdl2-dev \
+            libclang-dev \
+            libxtst-dev \
+            libx11-dev \
+            libxext-dev \
+            libxrandr-dev \
+            libxinerama-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libgl1-mesa-dev \
+            libasound2-dev \
+            libpulse-dev \
+            curl \
+            pkg-config \
+            libsqlite3-dev \
+            libbz2-dev \
+            zlib1g-dev \
+            libonig-dev \
+            libayatana-appindicator3-dev \
+            libsamplerate-dev \
+            libwebrtc-audio-processing-dev
+
+      - name: Install Intel MKL
+        run: |
+          sudo apt-get install -y intel-mkl libmkl-dev
+
+      - name: Install NVIDIA CUDA Toolkit
+        run: |
+          sudo apt-get install -y nvidia-cuda-toolkit
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Build ScreenPipe
+        working-directory: screenpipe
+        run: cargo build --release
+
+      - name: Run Tests
+        working-directory: screenpipe
+        run: cargo test --release
+
+      - name: Build Desktop App
+        working-directory: screenpipe/screenpipe-app-tauri
+        continue-on-error: true
+        if: always() 
+        run: |
+          bun install
+          bun run tauri build
+
+      - name: Upload finished AppImage as artifact (even if previous steps fail)
+        uses: actions/upload-artifact@v4
+        if: always() 
+        continue-on-error: true
+        with:
+          name: screenpipe-bundle
+          path: screenpipe/screenpipe-app-tauri/src-tauri/target/release/bundle/
